@@ -82,7 +82,11 @@ if __name__ == '__main__':
 	if not os.path.exists(args.dataset):
 		print(f"Error: The file '{args.dataset}' does not exist.")
 		exit(1)
-	df = pd.read_csv(args.dataset)
+	try:
+		df = pd.read_csv(args.dataset)
+	except Exception as e:
+		print(f"Error: {e}")
+		exit(1)
 	print(df.describe())
 	dictionary_values = describe(df)
 
