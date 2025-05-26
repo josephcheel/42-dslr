@@ -10,7 +10,7 @@ import os
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-def ft_softmax(z):
+def ft_softmax(z: np.matrix):
     exp_z = np.exp(z - np.max(z, axis=1, keepdims=True))
     return exp_z / np.sum(exp_z, axis=1, keepdims=True)
 
@@ -71,9 +71,9 @@ def isNumeric(value):
 	except ValueError:
 		return False
 
-def load_dataset(dataset_path, delimiter=',', header=0, feature_names=None):
+def load_dataset(dataset_path, delimiter=',', skiprows=0, feature_names=None):
 	try:
-		df = pd.read_csv(dataset_path, delimiter=delimiter, skiprows=header)
+		df = pd.read_csv(dataset_path, delimiter=delimiter, skiprows=skiprows)
 		df = df.dropna(axis=1, how = 'all')
 		df = df.dropna(axis = 0)
 	except FileNotFoundError:
@@ -109,13 +109,13 @@ if __name__ == '__main__':
 	dataset_group.add_argument('--output', "-o", type=str, default='result.csv', help="Output file for the results as CSV. (default: result.csv)")
 	
 	dataset_group.add_argument('--delimiter', "-del", type=str, default=',', help="Delimiter for the dataset.")
-	dataset_group.add_argument('--skip_header', '-s', type=int, default=0, help="Skip header of the dataset. 0: no header, 1: skip first row, 2: skip first two rows")
+	dataset_group.add_argument('--skiprows', '-s', type=int, default=0, help="Skip header of the dataset. 0: no header, 1: skip first row, 2: skip first two rows")
 
 	args = argparser.parse_args()
 
 	classes, weights, biases, column_names = load_model_parameters(args.input)
 
-	X = load_dataset(args.dataset, args.delimiter, args.skip_header, column_names)
+	X = load_dataset(args.dataset, args.delimiter, args.skiprows, column_names)
 
 	pred_indices, probs = predict(X, weights, biases)
 	pred_classes = [classes[i] for i in pred_indices]
