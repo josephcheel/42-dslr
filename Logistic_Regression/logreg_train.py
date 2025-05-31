@@ -12,8 +12,6 @@ from sklearn.metrics import precision_score
 import os 
 from enum import Enum, auto
 
-# LEARNING_RATE = 0.01
-# MINIMUM_STEP_SIZE = 0.0001
 LEARNING_RATE = None
 MINIMUM_STEP_SIZE = None
 MAXIMUM_NUMBER_OF_STEPS = None
@@ -211,28 +209,51 @@ def initialize_terminal_arguments(argparser):
     optimization_group.add_argument('--mini_batch', '-mb', nargs='?', type=int, default=None, const=32, help="Batch size for Stochastic Gradient Descent. (default: 32)")
     # algo_group.add_argument('--stochastic', '-st', action='store_true', help="Use Stochastic Gradient Descent instead of Batch Gradient Descent(default).")
     # algo_group.add_argument('--mini_batch', '-mb', nargs='?', type=int, default=None, const=32, help="Batch size for Stochastic Gradient Descent. (default: 32)", )
-    algo_group.add_argument('--validation_split', '-vs', type=float, default=0.2, choices=[0.2, 0.3, 0.4], help="Fraction of the dataset to use for validation. (default: 0.2)")
+    algo_group.add_argument('--validation_split', '-vs', type=float, choices=[0.2, 0.3, 0.4], help="Fraction of the dataset to use for validation. (default: 0.2)")
 
     # Output options
     output_group = argparser.add_argument_group('Output Options')
     output_group.add_argument('--output', "-o", type=str, default='model.json', help="Output file for the results as JSON. (default: model.json)")
     output_group.add_argument('--errors', '-e', action='store_true', help="Enable error logging during training.")
 
-def clean_dataframe(df):
+def clean_dataframe_and_extract_info(df, validation_split=None):
     DROP_TYPE = 0
     
-    match DROP_TYPE:
-        case 0:
-            df_cleaned = df.dropna()
-        case 1:
-            # Drop columns with any NaN values
-            df_cleaned = df.fillna(df.mean(numeric_only=True))
-        case 2:
-            # Fill NaN values with column mean
-            df_cleaned = df.fillna(0)
-        case _:
-            df_cleaned = df.dropna()
-    return df_cleaned
+    try:
+        match DROP_TYPE:
+            case 0:
+                df_tmp = df.dropna()
+            case 1:
+                # Drop columns with any NaN values
+                df_tmp = df.fillna(df.mean(numeric_only=True))
+            case 2:
+                # Fill NaN values with column mean
+                df_tmp = df.fillna(0)
+            case _:
+                df_tmp = df.dropna()
+    except Exception as e:
+        print(f"An error occurred while cleaning the dataset: {e}", file=sys.stderr)
+        sys.exit(1)
+    
+    # if validation_split is not None:
+    #     df_train, df_val = train_test_split(df, test_size=validation_split, random_state=42)
+
+    try:
+        df_cleaned = df_tmp.drop(args.target, axis=1)
+        target_variables = df_tmp[args.target]
+        unique_targets_sorted = sorted(target_variables.unique())
+    except KeyError:
+        print(f"Error: The target column '{args.target}' does not exist in the dataset. Please check your dataset and target column name.", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"An error occurred while processing the dataset: {e}", file=sys.stderr)
+        sys.exit(1)
+    
+    if len(unique_targets_sorted) < 2:
+        print(f"Error: No more than one unique class target found. Please check your target column {args.target}.", file=sys.stderr)
+        sys.exit(1)
+
+    return df_cleaned, target_variables, unique_targets_sorted
 
 def load_features_file(input_path):
     try:
@@ -273,6 +294,35 @@ def error_visualization(loss: list):
     plt.grid(True)
     plt.show()
 
+def get_features(arg_features, features_file):
+    if arg_features:
+        features_names = arg_features
+    elif features_file:
+        features_names = load_features_file(features_file)
+    if len(features_names) == 0:
+        print("Error: No features specified. Please provide at least one feature using --features or --features_file.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        df_selected_features_values = df_cleaned[features_names]
+    except KeyError as e:
+        print(f"Error: One or more specified features do not exist in the dataset: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if df_selected_features_values.empty:
+        print("Error: The dataset is empty after applying the specified features. Please check your dataset and feature selection.", file=sys.stderr)
+        sys.exit(1)
+
+    return features_names, df_selected_features_values
+
+def precision_calculation(df_selected_features_values, weights, bias, one_hot):
+    predicted_probs = ft_softmax(np.dot(df_selected_features_values, weights) + bias)
+    predicted_labels = np.argmax(predicted_probs, axis=1)
+    true_labels = np.argmax(one_hot, axis=1)
+
+    precision = precision_score(true_labels, predicted_labels, average='weighted', zero_division=0)
+    return precision
+
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser(
         description="Computes a Linear Regression using the Gradient Descent Algorithm with the specified dataset."
@@ -284,88 +334,45 @@ if __name__ == '__main__':
     MINIMUM_STEP_SIZE = args.min_step_size
     MAXIMUM_NUMBER_OF_STEPS = args.max_steps
 
-    if not args.features and not args.features_file:
-        argparser.error("any feature specified please use --features or --features_list")
-    
     df = parse_dataset(args.dataset, delimiter=args.delimiter, skiprows=args.skiprows)
-    df_cleaned = clean_dataframe(df)
-
-    try:
-        feature_values = df_cleaned.drop(args.target, axis=1)
-        target_variables = df_cleaned[args.target]
-        unique_targets_sorted = sorted(target_variables.unique())
-    except KeyError:
-        print(f"Error: The target column '{args.target}' does not exist in the dataset. Please check your dataset and target column name.", file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:
-        print(f"An error occurred while processing the dataset: {e}", file=sys.stderr)
-        sys.exit(1)
-    
-
-    if args.features:
-        features_names = args.features
-    elif args.features_file:
-        features_names = load_features_file(args.features_file)
-
-    if len(features_names) == 0:
-        print("Error: No features specified. Please provide at least one feature using --features or --features_file.", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        selected_features_values = feature_values[features_names]
-    except KeyError as e:
-        print(f"Error: One or more specified features do not exist in the dataset: {e}", file=sys.stderr)
-        sys.exit(1)
 
 
-    if selected_features_values.empty:
-        print("Error: The dataset is empty after applying the specified features. Please check your dataset and feature selection.", file=sys.stderr)
-        sys.exit(1)
-    
-    if len(unique_targets_sorted) < 2:
-        print(f"Error: No more than one unique class target found. Please check your target column {args.target}.", file=sys.stderr)
-        sys.exit(1)
+    df_cleaned, target_variables, unique_targets_sorted = clean_dataframe_and_extract_info(df)
 
-    # print('options ', unique_targets) 
-    # print('options ', sorted(unique_targets))
-    one_hot = one_hot_encode(target_variables, unique_targets_sorted)                            
-    
+    features_names, df_selected_features_values = get_features(args.features, args.features_file)
 
-    number_of_input_features = selected_features_values.shape[1]
+    one_hot = one_hot_encode(target_variables, unique_targets_sorted)
+
+    number_of_input_features = df_selected_features_values.shape[1]
     num_classes = len(unique_targets_sorted)
-    starting_weights = np.random.randn(number_of_input_features, num_classes) #* 0.01  # Initialize weights with small random values
+    starting_weights = np.random.randn(number_of_input_features, num_classes) * 0.01  # Initialize weights with small random values
     starting_bias =  np.zeros(num_classes)
 
     if args.batch:
         weights, bias, loss = ft_softmax_regression(
-            starting_weights, starting_bias, selected_features_values.values, one_hot,
+            starting_weights, starting_bias, df_selected_features_values.values, one_hot,
             gradient_type=GradientDescentType.BATCH, batch_size=None, errors=args.errors)
     elif args.stochastic:
         weights, bias, loss = ft_softmax_regression(
-            starting_weights, starting_bias, selected_features_values.values, one_hot,
+            starting_weights, starting_bias, df_selected_features_values.values, one_hot,
             gradient_type=GradientDescentType.STOCHASTIC, batch_size=1, errors=args.errors)
     elif args.mini_batch is not None:
         weights, bias, loss = ft_softmax_regression(
-            starting_weights, starting_bias, selected_features_values.values, one_hot,
+            starting_weights, starting_bias, df_selected_features_values.values, one_hot,
             gradient_type=GradientDescentType.MINI_BATCH,
             batch_size=args.mini_batch, errors=args.errors
         )
     else:
         weights, bias, loss = ft_softmax_regression(
-            starting_weights, starting_bias, selected_features_values.values, one_hot,
+            starting_weights, starting_bias, df_selected_features_values.values, one_hot,
             gradient_type=GradientDescentType.BATCH, batch_size=None, errors=args.errors)
 
-    # Plot loss if available
     if args.errors:
         error_visualization(loss)
-
-    predicted_probs = ft_softmax(np.dot(selected_features_values.values, weights) + bias)
-    predicted_labels = np.argmax(predicted_probs, axis=1)
-    true_labels = np.argmax(one_hot, axis=1)
-
-    precision = precision_score(true_labels, predicted_labels, average='weighted', zero_division=0)
-
+    
+    precision = precision_calculation(df_selected_features_values, weights, bias, one_hot)
     print(f"Precision: {precision:.4f}")
+
     if args.output:
         output_result(output_file=args.output, weights=weights, bias=bias, classes=unique_targets_sorted, column_names=features_names)
 
