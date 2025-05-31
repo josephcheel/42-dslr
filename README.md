@@ -23,21 +23,34 @@
 ```bash
 . ./install.sh
 ```
-### Linear Regression Program
+### Multinomial Logistic Regression Train Program
 Computes a Linear Regression using Gradient Descend Algorithm with the dataset specified.
-* use --dataset or -d to specify a dataset
-* use --graphical or -g to open a graph window with the result
-* use --output or -o to save the result in a json format file 
+* use ```--dataset``` or ```-d``` to specify a dataset
+* use ```--target``` or ```-t``` to open a graph window with the result
+* use ```--output``` or ```-o``` to save the model result with a specific filename (default: model.json) 
+
+#### Features
+* use ```--features FEATURE1 FEATURE2 FEATURE3``` or  ```-f FEATURE1 FEATURE2 FEATURE3``` to specify the features names corresponding to the column on the dataset to use for training
+* use ```--features_file FEATURES_FILE``` or ```-fl FEATURES_FILE``` to specify the path to a file containing a JSON list with the features names  
+
+#### Gradient Descend Types
+* use ```--batch``` or ```-b``` for Batch Gradient Descent (default).  
+* use ```--stochastic``` or ```-st``` for Stochastic Gradient Descent.
+* use ```--mini_batch [BATCH_NUMBER]``` or ```-mb [BATCH_NUMBER]``` (default batch size:32) for Mini-Batch Gradient Descent and specify a batch size for it. (default: 32)
 ##### for more information about options use:
 ```bash
-python3 linear_regression.py -h
+python3 logreg_train.py -h
 ```
 Try:
 ```bash
-python3 linear_regression.py --dataset datasets/data.csv --graphical
+python3 logreg_train.py -d ../datasets/dataset_train.csv -t 'Hogwarts House' -fl example_features_list.json
 ```
+
+> [!NOTE]
+> The train program outputs a file by default called ```model.json``` 
+   
 <!--
-### Linear Predictor Program
+### Multinomial Predictor Program
 This program calculates the predicted value of Y based on a given X value using a simple linear equation \( Y = $theta_0$ + $theta_1$ · X \)
 
 * use --theta0 or -t0 to specify the theta0 or intercept
