@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
@@ -6,60 +7,130 @@ import signal
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from logreg_predict import predict, ft_softmax
-LEARNING_RATE = 0.01
-MINIMUM_STEP_SIZE = 0.0001
-MAXIMUM_NUMBER_OF_STEPS = 1000
-STARTING_THETA0 = 0
-STARTING_THETA1 = 0
+import json
+from sklearn.metrics import precision_score
+import os 
+from enum import Enum, auto
 
-error_list = []
+# LEARNING_RATE = 0.01
+# MINIMUM_STEP_SIZE = 0.0001
+LEARNING_RATE = None
+MINIMUM_STEP_SIZE = None
+MAXIMUM_NUMBER_OF_STEPS = None
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-def cross_entropy_loss():
-   pass
-
-def ft_gradient_descend(theta0, theta1, observed_y, observed_x, errors):
-
-    for step in range(MAXIMUM_NUMBER_OF_STEPS):
-
-        #  , error = mean_bias_error(observed_x, observed_y, theta0, theta1)
-        if errors:
-            error_list.append(np.mean(error**2))
-    
-        if abs(new_theta0 - theta0) < MINIMUM_STEP_SIZE and abs(new_theta1 - theta1) < MINIMUM_STEP_SIZE:
-            print(f"Converged at step {step}")
-            break
-
-        theta0, theta1 = new_theta0, new_theta1
-
-    return theta0, theta1
+def cross_entropy_loss(probabilities, one_hot_labels):
+    eps = 1e-8  # small value for stability
+    log_probs = -np.log(probabilities + eps)
+    loss = np.mean(np.sum(one_hot_labels * log_probs, axis=1))
+    return loss
 
 def standardization(data):
     mean = np.mean(data, axis=0)
     std = np.std(data, axis=0)
-    return (data - mean) / std, mean, std
+    standardized_data = (data - mean) / std
+    return standardized_data, mean, std
 
-# def ft_linear_regression(data, errors):
+class GradientDescentType(Enum):
+    BATCH = auto()
+    STOCHASTIC = auto()
+    MINI_BATCH = auto()
+
+def ft_softmax_regression(starting_weights, starting_bias, data, one_hot_labels, gradient_type=GradientDescentType.BATCH, batch_size=32, errors=False):
+    data, mean_x, std_x = standardization(data)
+
+    if gradient_type == GradientDescentType.BATCH:
+        print("Using Batch Gradient Descent")
+        weights, bias, loss = ft_gradient_descend(starting_weights, starting_bias, data, one_hot_labels, errors=errors)
+    elif gradient_type == GradientDescentType.STOCHASTIC:
+        print("Using Stochastic Gradient Descent")
+        weights, bias, loss = ft_gradient_descend_stochastic(starting_weights, starting_bias, data, one_hot_labels, errors=errors)
+    elif gradient_type == GradientDescentType.MINI_BATCH:
+        print(f"Using mini-batch gradient descent with batch size {batch_size}")
+        if batch_size <= 0:
+            print("Error: Mini-batch size must be a positive integer.")
+            sys.exit(1)
+        if batch_size > data.shape[0]:
+            print(f"Warning: Mini-batch size {batch_size} is larger than the number of samples {data.shape[0]}. Using full batch instead.")
+            batch_size = data.shape[0]
+        weights, bias, loss = ft_gradient_descend_mini_batch(starting_weights, starting_bias, data, one_hot_labels, batch_size=batch_size, errors=errors)
+    weights = weights / std_x[:, np.newaxis]
+    bias = bias - (weights.T @ mean_x)
+
+    return weights, bias, loss
+
+def ft_gradient_descend(weights, bias, X, one_hot_labels, errors=False):
+    error_list = []
+    prev_loss = float('inf')
+    for step in range(MAXIMUM_NUMBER_OF_STEPS):
+        logits = X @ weights + bias
+        probabilities = ft_softmax(logits)
+        loss = cross_entropy_loss(probabilities, one_hot_labels)
+
+        grad_logits = (probabilities - one_hot_labels) / one_hot_labels.shape[0]
+        grad_weights = X.T @ grad_logits
+        grad_bias = np.sum(grad_logits, axis=0)
+
+        # Gradient update
+        weights -= LEARNING_RATE * grad_weights
+        bias -= LEARNING_RATE * grad_bias
+
+        if errors:
+            error_list.append(loss)
+
+        # Convergence check
+        if abs(loss - prev_loss) < MINIMUM_STEP_SIZE:
+            print(f"Converged at step {step}")
+            break
+        prev_loss = loss
     
-#     # Standardize the data
-#     data, mean_x, std_x = standardization(data)
-#     standarized_x = data[:, 0]
-#     standarized_y = data[:, 1]
+    return weights, bias, error_list
 
-#     theta0, theta1 = ft_gradient_descend(STARTING_THETA0, STARTING_THETA1, standarized_y, standarized_x, errors)
+def ft_gradient_descend_stochastic(weights, bias, X, one_hot_labels, errors=False):
+    weights, bias, error_list = ft_gradient_descent_step(weights, bias, X, one_hot_labels, batch_size=1, errors=errors)
+    return weights, bias, error_list
 
-#     # Reverse the standardization
-#     theta1 = theta1 * (std_x[1] / std_x[0])
-#     theta0 = theta0 * std_x[1] + mean_x[1] - theta1 * mean_x[0]
-    
-#     return theta0, theta1
+def ft_gradient_descend_mini_batch(weights, bias, X, one_hot_labels, batch_size=32, errors=False):
+    weights, bias, error_list = ft_gradient_descent_step(weights, bias, X, one_hot_labels, batch_size=batch_size, errors=errors)
+    return weights, bias, error_list
 
-def ft_logistic_regression(intercept, coefficients, x):
-    ft_sigmoid(intercept, coefficients, x)
+def ft_gradient_descent_step(weights, bias, X, one_hot_labels, batch_size=32,errors=False):
+    error_list = []
+    prev_loss = float('inf')
+    num_samples = X.shape[0]
 
-def ft_softmax_regression():
-    pass
+    indices = np.arange(num_samples)
+    np.random.shuffle(indices)
+    X_shuffled = X[indices]
+    y_shuffled = one_hot_labels[indices]
+
+    for step in range(MAXIMUM_NUMBER_OF_STEPS):
+        for batch_start in range(0, X_shuffled.shape[0], batch_size):
+            batch_end = min(batch_start + batch_size, X_shuffled.shape[0])
+            X_batch = X_shuffled[batch_start:batch_end]
+            one_hot_labels_batch = y_shuffled[batch_start:batch_end]
+            logits = X_batch @ weights + bias
+            probabilities = ft_softmax(logits)
+            loss = cross_entropy_loss(probabilities, one_hot_labels_batch)
+            grad_logits = (probabilities - one_hot_labels_batch) / one_hot_labels_batch.shape[0]  # Shape: (N, C)
+            grad_weights = X_batch.T @ grad_logits        # Shape: (C, D)
+            grad_bias = np.sum(grad_logits, axis=0)  # Shape: (C,)
+            # Convergence check
+            if abs(loss - prev_loss) < MINIMUM_STEP_SIZE:
+                # print(f"Converged at step {step}")
+                break
+            prev_loss = loss
+
+            # Gradient update
+            weights -= LEARNING_RATE * grad_weights
+            bias -= LEARNING_RATE * grad_bias
+
+            if errors:
+                error_list.append(loss)
+
+
+    return weights, bias, error_list
 
 def compute_gradient(constants: np.ndarray, feature: np.ndarray, label: np.ndarray, length: int) -> np.ndarray:
     """
@@ -96,131 +167,205 @@ def parse_dataset(file_path, delimiter=',', skiprows=0):
         exit(1)
     return data
 
-def output_result(theta0, theta1, output_file):
+def output_result(output_file, weights, bias, classes, column_names):
     try:
-        open(output_file, "w").write(f"{{\"theta0\": {theta0}, \"theta1\": {theta1}}}")
+        if output_file.endswith('.json'):
+            output_file = output_file
+        else:
+            output_file += '.json'
+        if os.path.exists(output_file):
+            print(f"Warning: Output file {output_file} already exists. It will be overwritten.", file=sys.stderr)
+            input("Press Enter to continue or Ctrl+C to cancel...")        
+        open(output_file, "w").write(
+            json.dumps({
+                "classes": classes,
+                "weights": weights.tolist(),
+                "biases": bias.tolist(),
+                "column_names": column_names
+            }, indent=4)  # Use indent for pretty printing
+        )
         print(f"Results successfully saved to {output_file}")
     except PermissionError:
         print(f"Permission denied to write to file {output_file}. Please check the permissions.", file=sys.stderr)
 
-# theta0 = intercept
-# theta1 = slope
 
 def initialize_terminal_arguments(argparser):
     dataset_group = argparser.add_argument_group('Dataset Options')
-    dataset_group.add_argument(
-        '--dataset', "-d",
-        type=str, 
-        required=True, 
-        default='./data.csv', 
-        help="Path to the dataset."
-    )
-
-    dataset_group.add_argument(
-        '--features', '-f',
-        type=str,
-        help='Comma-separated list of feature column names to use.'
-    )
+    dataset_group.add_argument('--dataset', "-d", type=str, required=True, default='./data.csv', help="Path to the dataset.")
+    dataset_group.add_argument('--target', '-t', type=str, required=True, help='Name of the target column.')
+    dataset_group.add_argument('--delimiter', "-del", type=str, default=',', help="Delimiter for the dataset.")
+    dataset_group.add_argument('--skiprows', '-s', type=int, default=0, help="Skip header of the dataset. 0: no header, 1: skip first row, 2: skip first two rows")
+    features_group = dataset_group.add_mutually_exclusive_group(required=True)
+    features_group.add_argument('--features', '-f', nargs='+', type=str, help='List of feature names to use for training, space separated. Example: --features feature1 feature2 feature3')
+    features_group.add_argument('--features_file', '-fl', type=str, help='Path to a file containing feature names, one per line.')
     
-    dataset_group.add_argument(
-        '--features_file', '-fl',
-        type=str,
-        help='Path to a file containing feature names, one per line.'
-    )
-    
-    dataset_group.add_argument(
-        '--target',
-        type=str,
-        required=True,
-        help='Name of the target column.'
-    )
-    
-    dataset_group.add_argument(
-        '--delimiter', "-del",
-        type=str,
-        default=',',
-        help="Delimiter for the dataset."
-    )
-
-    dataset_group.add_argument(
-        '--skiprows', '-s',
-        type=int,
-        default=0,
-        help="Skip header of the dataset. 0: no header, 1: skip first row, 2: skip first two rows"
-    )
-
     # Algorithm options
     algo_group = argparser.add_argument_group('Algorithm Options')
     algo_group.add_argument('--learning_rate', "-lr", type=float, default=0.01, help="Learning rate for the Gradient Descent algorithm.")
+    algo_group.add_argument('--max_steps', "-ms", type=int, default=1000, help="Maximum number of steps for the Gradient Descent algorithm.")
+    algo_group.add_argument('--min_step_size', "-mss", type=float, default=0.0001, help="Minimum step size for convergence in the Gradient Descent algorithm.")
+    
+    optimization_group = algo_group.add_mutually_exclusive_group(required=False)
+    optimization_group.add_argument('--batch', '-b', action='store_true', help="Use Batch Gradient Descent (default).")
+    optimization_group.add_argument('--stochastic', '-st', action='store_true', help="Use Stochastic Gradient Descent instead of Batch Gradient Descent.")
+    optimization_group.add_argument('--mini_batch', '-mb', nargs='?', type=int, default=None, const=32, help="Batch size for Stochastic Gradient Descent. (default: 32)")
+    # algo_group.add_argument('--stochastic', '-st', action='store_true', help="Use Stochastic Gradient Descent instead of Batch Gradient Descent(default).")
+    # algo_group.add_argument('--mini_batch', '-mb', nargs='?', type=int, default=None, const=32, help="Batch size for Stochastic Gradient Descent. (default: 32)", )
+    algo_group.add_argument('--validation_split', '-vs', type=float, default=0.2, choices=[0.2, 0.3, 0.4], help="Fraction of the dataset to use for validation. (default: 0.2)")
 
     # Output options
     output_group = argparser.add_argument_group('Output Options')
     output_group.add_argument('--output', "-o", type=str, default='model.json', help="Output file for the results as JSON. (default: model.json)")
+    output_group.add_argument('--errors', '-e', action='store_true', help="Enable error logging during training.")
+
+def clean_dataframe(df):
+    DROP_TYPE = 0
+    
+    match DROP_TYPE:
+        case 0:
+            df_cleaned = df.dropna()
+        case 1:
+            # Drop columns with any NaN values
+            df_cleaned = df.fillna(df.mean(numeric_only=True))
+        case 2:
+            # Fill NaN values with column mean
+            df_cleaned = df.fillna(0)
+        case _:
+            df_cleaned = df.dropna()
+    return df_cleaned
+
+def load_features_file(input_path):
+    try:
+        with open(input_path, 'r') as f:
+            features = json.load(f)
+    except Exception as e:
+        print(f"Error loading model parameters: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if not isinstance(features, list):
+        print("Error: Model parameters should be a list of strings", file=sys.stderr)
+        sys.exit(1)
+    return features
+
+def one_hot_encode(targets, unique_targets):
+    """
+    One-hot encode the target variable.
+    
+    Parameters:
+    - targets: The target variable to encode.
+    - unique_targets: The unique values in the target variable.
+    
+    Returns:
+    - np.ndarray: One-hot encoded matrix.
+    """
+    one_hot = np.zeros((len(targets), len(unique_targets)))
+    for i, target in enumerate(targets):
+        one_hot[i, unique_targets.index(target)] = 1 # same as one_hot[i][unique_targets.index(target)] = 1 but more efficient
+    return one_hot
+
+def error_visualization(loss: list):
+    plt.figure(figsize=(8, 5))
+    plt.plot(loss, label='Training Loss')
+    plt.xlabel('Iteration')
+    plt.ylabel('Loss')
+    plt.title('Loss Curve')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser(
         description="Computes a Linear Regression using the Gradient Descent Algorithm with the specified dataset."
     )
     initialize_terminal_arguments(argparser)
-    # Dataset-related arguments
-    
-    # Parse arguments
     args = argparser.parse_args()
-    if args.learning_rate:
-        LEARNING_RATE = args.learning_rate
+
+    LEARNING_RATE = args.learning_rate
+    MINIMUM_STEP_SIZE = args.min_step_size
+    MAXIMUM_NUMBER_OF_STEPS = args.max_steps
 
     if not args.features and not args.features_file:
         argparser.error("any feature specified please use --features or --features_list")
-        
-    example = [[1.9, 1.2, 0.7]]
-    print(ft_softmax(example)) # calculate probabilistics
+    
     df = parse_dataset(args.dataset, delimiter=args.delimiter, skiprows=args.skiprows)
+    df_cleaned = clean_dataframe(df)
 
-    dataframe = df.drop('Hogwarts House', axis=1)
-    target_variables = df['Hogwarts House']
-  
-    sys.exit(1) 
-
+    try:
+        feature_values = df_cleaned.drop(args.target, axis=1)
+        target_variables = df_cleaned[args.target]
+        unique_targets_sorted = sorted(target_variables.unique())
+    except KeyError:
+        print(f"Error: The target column '{args.target}' does not exist in the dataset. Please check your dataset and target column name.", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"An error occurred while processing the dataset: {e}", file=sys.stderr)
+        sys.exit(1)
     
-    if data is None or data.size == 0 or len(data.shape) < 2 or data.shape[1] < 2:
-        print("Error: CSV file has an incorrect format. Possible issues include too many columns, too few rows, or mismatched data. Exiting...")
-        exit(1)
 
-    print(f"Original data shape: {data.shape}")
+    if args.features:
+        features_names = args.features
+    elif args.features_file:
+        features_names = load_features_file(args.features_file)
+
+    if len(features_names) == 0:
+        print("Error: No features specified. Please provide at least one feature using --features or --features_file.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        selected_features_values = feature_values[features_names]
+    except KeyError as e:
+        print(f"Error: One or more specified features do not exist in the dataset: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+    if selected_features_values.empty:
+        print("Error: The dataset is empty after applying the specified features. Please check your dataset and feature selection.", file=sys.stderr)
+        sys.exit(1)
+    
+    if len(unique_targets_sorted) < 2:
+        print(f"Error: No more than one unique class target found. Please check your target column {args.target}.", file=sys.stderr)
+        sys.exit(1)
+
+    # print('options ', unique_targets) 
+    # print('options ', sorted(unique_targets))
+    one_hot = one_hot_encode(target_variables, unique_targets_sorted)                            
     
 
-    numeric_data = np.array([[pd.to_numeric(value, errors='coerce') for value in row] for row in data], dtype=float)
+    number_of_input_features = selected_features_values.shape[1]
+    num_classes = len(unique_targets_sorted)
+    starting_weights = np.random.randn(number_of_input_features, num_classes) #* 0.01  # Initialize weights with small random values
+    starting_bias =  np.zeros(num_classes)
 
-    valid_rows = ~np.isnan(data).any(axis=0)
-    cleaned_data = data[valid_rows]
-    cleaned_data = cleaned_data[~np.isnan(cleaned_data).any(axis=1)]
+    if args.batch:
+        weights, bias, loss = ft_softmax_regression(
+            starting_weights, starting_bias, selected_features_values.values, one_hot,
+            gradient_type=GradientDescentType.BATCH, batch_size=None, errors=args.errors)
+    elif args.stochastic:
+        weights, bias, loss = ft_softmax_regression(
+            starting_weights, starting_bias, selected_features_values.values, one_hot,
+            gradient_type=GradientDescentType.STOCHASTIC, batch_size=1, errors=args.errors)
+    elif args.mini_batch is not None:
+        weights, bias, loss = ft_softmax_regression(
+            starting_weights, starting_bias, selected_features_values.values, one_hot,
+            gradient_type=GradientDescentType.MINI_BATCH,
+            batch_size=args.mini_batch, errors=args.errors
+        )
+    else:
+        weights, bias, loss = ft_softmax_regression(
+            starting_weights, starting_bias, selected_features_values.values, one_hot,
+            gradient_type=GradientDescentType.BATCH, batch_size=None, errors=args.errors)
 
-    print(f"Cleaned data shape: {cleaned_data.shape}")
-    if cleaned_data is None or cleaned_data.size == 0 or len(cleaned_data.shape) < 2 or cleaned_data.shape[1] < 2:
-        print("Error: CSV file has an incorrect format. Possible issues include too many columns, too few rows, or mismatched data. Exiting...")
-        exit(1)
-    
-    # print(cleaned_data.shape, len(cleaned_data.shape))
-    original_x = cleaned_data[:, 0].copy()
-    original_y = cleaned_data[:, 1].copy()
+    # Plot loss if available
+    if args.errors:
+        error_visualization(loss)
 
-    theta0, theta1 = ft_linear_regression(cleaned_data, args.errors)
+    predicted_probs = ft_softmax(np.dot(selected_features_values.values, weights) + bias)
+    predicted_labels = np.argmax(predicted_probs, axis=1)
+    true_labels = np.argmax(one_hot, axis=1)
 
-    print(f"Theta0: {theta0}, Theta1: {theta1}")
+    precision = precision_score(true_labels, predicted_labels, average='weighted', zero_division=0)
+
+    print(f"Precision: {precision:.4f}")
     if args.output:
-        output_result(theta0, theta1, args.output)
-    if args.errors:
-        if error_list:
-            print(f"Last Error: {error_list[-1]}")
+        output_result(output_file=args.output, weights=weights, bias=bias, classes=unique_targets_sorted, column_names=features_names)
 
-    if args.graphical:
-        linear_regression_window(original_x, original_y, theta0, theta1)
-
-    if args.errors:
-        error_window(error_list)
-
-m = observed = 12
-
-
-def ft_cost_function(theta0, theta1, observed_x, observed_y):
-    result = - 1/m * np.sum(observed_y * np.log(ft_sigmoid(theta0, theta1, observed_x)) + (1 - observed_y) * np.log(1 - ft_sigmoid(theta0, theta1, observed_x)))
