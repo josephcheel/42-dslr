@@ -12,6 +12,17 @@
 <!--MINI DESCRIPTION-->
 > 
 
+
+## Table of Contents
+- [Introduction](#introduction)
+- [Install Dependencies](#install-dependencies)
+- [Usage](#usage)
+  - [Train Program](#multinomial-logistic-regression-train-program)
+  - [Predictor Program](#multinomial-predictor-program)
+<!--
+- [Contributing](#contributing)
+- [License](#license)
+-->
 ![]()
 <!--
 > [!IMPORTANT]  
@@ -19,10 +30,12 @@
 > * theta0($\theta_0$) is the intercept, and can be used interchangeably with the term "intercept." It represents the value of 𝑦 when 𝑥=0.
 > * theta1($\theta_1$) is the slope, and can be used interchangeably with the term "slope." It represents how much 𝑦 changes for each unit increase in 𝑥.
 -->
-### Install Dependencies
+## Introduction
+## Install Dependencies
 ```bash
 . ./install.sh
 ```
+## Usage
 ### Multinomial Logistic Regression Train Program
 Computes a Multinomonal Regression using Gradient Descend Algorithm with the dataset specified.
 * use ```--dataset``` or ```-d``` to specify a dataset
@@ -49,10 +62,10 @@ python3 logreg_train.py -d ../datasets/dataset_train.csv -t 'Hogwarts House' -fl
 > [!NOTE]
 > The train program outputs a file by default called ```model.json```. It is important to predict with the next program below ```logreg_predict.py```
    
-<!--
 ### Multinomial Predictor Program
-This program calculates the predicted values of a target using a softmax function\( Y = $theta_0$ + $theta_1$ · X \)
+This program performs prediction for a categorical target variable using a multinomial logistic regression model. It computes the predicted probabilities of each class using the softmax function
 
+<!--
 * use --theta0 or -t0 to specify the theta0 or intercept
 * use --theta1 or -t1 to specify the theta1 or slope
 * use --json or -j for input a json with theta0 and theta1 result from the previous program
