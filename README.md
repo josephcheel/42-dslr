@@ -24,7 +24,7 @@
 . ./install.sh
 ```
 ### Multinomial Logistic Regression Train Program
-Computes a Linear Regression using Gradient Descend Algorithm with the dataset specified.
+Computes a Multinomonal Regression using Gradient Descend Algorithm with the dataset specified.
 * use ```--dataset``` or ```-d``` to specify a dataset
 * use ```--target``` or ```-t``` to open a graph window with the result
 * use ```--output``` or ```-o``` to save the model result with a specific filename (default: model.json) 
@@ -51,7 +51,7 @@ python3 logreg_train.py -d ../datasets/dataset_train.csv -t 'Hogwarts House' -fl
    
 <!--
 ### Multinomial Predictor Program
-This program calculates the predicted value of Y based on a given X value using a simple linear equation \( Y = $theta_0$ + $theta_1$ · X \)
+This program calculates the predicted values of a target using a softmax function\( Y = $theta_0$ + $theta_1$ · X \)
 
 * use --theta0 or -t0 to specify the theta0 or intercept
 * use --theta1 or -t1 to specify the theta1 or slope
