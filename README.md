@@ -37,7 +37,7 @@ Computes a Linear Regression using Gradient Descend Algorithm with the dataset s
 * use ```--batch``` or ```-b``` for Batch Gradient Descent (default).  
 * use ```--stochastic``` or ```-st``` for Stochastic Gradient Descent.
 * use ```--mini_batch [BATCH_NUMBER]``` or ```-mb [BATCH_NUMBER]``` (default batch size:32) for Mini-Batch Gradient Descent and specify a batch size for it. (default: 32)
-##### for more information about options use:
+#### for more information about options use:
 ```bash
 python3 logreg_train.py -h
 ```
@@ -47,7 +47,7 @@ python3 logreg_train.py -d ../datasets/dataset_train.csv -t 'Hogwarts House' -fl
 ```
 
 > [!NOTE]
-> The train program outputs a file by default called ```model.json``` 
+> The train program outputs a file by default called ```model.json```. It is important to predict with the next program below ```logreg_predict.py```
    
 <!--
 ### Multinomial Predictor Program
@@ -58,9 +58,9 @@ This program calculates the predicted value of Y based on a given X value using 
 * use --json or -j for input a json with theta0 and theta1 result from the previous program
 ##### for more information about options use:
 ```bash
-python3 linear_predictor.py -h
+python3 logreg_predict.py -h
 ```
 Try:
 ```bash
-python3 linear_predictor.py --theta0 8474.34137591075 --theta1 -0.021199045602042395
+python3 logreg_predict.py -d ../datasets/dataset_test.csv -i model.json
 ```-->
