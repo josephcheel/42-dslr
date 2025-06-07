@@ -206,7 +206,7 @@ def initialize_terminal_arguments(argparser):
     optimization_group = algo_group.add_mutually_exclusive_group(required=False)
     optimization_group.add_argument('--batch', '-b', action='store_true', help="Use Batch Gradient Descent (default).")
     optimization_group.add_argument('--stochastic', '-st', action='store_true', help="Use Stochastic Gradient Descent instead of Batch Gradient Descent.")
-    optimization_group.add_argument('--mini_batch', '-mb', nargs='?', type=int, default=None, const=32, help="Batch size for Stochastic Gradient Descent. (default: 32)")
+    optimization_group.add_argument('--mini_batch', '-mb', nargs='?', type=int, default=None, const=32, help="Batch size for Mini-Batch Gradient Descent. (default: 32)")
     # algo_group.add_argument('--stochastic', '-st', action='store_true', help="Use Stochastic Gradient Descent instead of Batch Gradient Descent(default).")
     # algo_group.add_argument('--mini_batch', '-mb', nargs='?', type=int, default=None, const=32, help="Batch size for Stochastic Gradient Descent. (default: 32)", )
     algo_group.add_argument('--validation_split', '-vs', type=float, choices=[0.2, 0.3, 0.4], help="Fraction of the dataset to use for validation. (default: 0.2)")
@@ -316,8 +316,9 @@ def get_features(arg_features, features_file):
     return features_names, df_selected_features_values
 
 def precision_calculation(df_selected_features_values, weights, bias, one_hot):
-    predicted_probs = ft_softmax(np.dot(df_selected_features_values, weights) + bias)
-    predicted_labels = np.argmax(predicted_probs, axis=1)
+    # predicted_probs = ft_softmax(np.dot(df_selected_features_values, weights) + bias)
+    # predicted_labels = np.argmax(predicted_probs, axis=1)
+    predicted_labels, _ = predict(df_selected_features_values.values, weights, bias)
     true_labels = np.argmax(one_hot, axis=1)
 
     precision = precision_score(true_labels, predicted_labels, average='weighted', zero_division=0)
