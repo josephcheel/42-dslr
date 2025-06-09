@@ -74,8 +74,9 @@ def isNumeric(value):
 def load_dataset(dataset_path, delimiter=',', skiprows=0, feature_names=None):
 	try:
 		df = pd.read_csv(dataset_path, delimiter=delimiter, skiprows=skiprows)
-		df = df.dropna(axis=1, how = 'all')
-		df = df.dropna(axis = 0)
+		#df = df.dropna(axis=1, how = 'all')
+		#df = df.dropna(axis = 0)
+		df = df.fillna(df.mean(numeric_only=True))
 	except FileNotFoundError:
 		print(f"File {dataset_path} not found. Please specify a valid path with option --dataset or -d", file=sys.stderr)
 		exit(1)
